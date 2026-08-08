@@ -24,10 +24,14 @@ def main():
     partition = community_louvain.best_partition(G, random_state=42)
     comm_count = len(set(partition.values()))
     comm_color = {c: PALETTE[c % len(PALETTE)] for c in range(comm_count)}
+    tm = {}
+    if (BASE / "data" / "team_map.json").exists():
+        tm = json.loads((BASE / "data" / "team_map.json").read_text(encoding="utf-8"))
     nodes_out = [{"id": uid, "label": attr["name"] or str(uid),
                   "value": G.degree(uid), "group": partition[uid],
                   "color": comm_color[partition[uid]], "degree": G.degree(uid),
-                  "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0)}
+                  "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0),
+                  "team": tm.get(str(uid), {}).get("name") or tm.get(str(uid), {}).get("short") or None}
                  for uid, attr in G.nodes(data=True)]
     # Top50 榜：先按累计 collab 张数降序，再按 collab 玩家数降序
     top = sorted(G.nodes(), key=lambda n: (-G.nodes[n].get("total_links", 0), -G.degree(n)))[:100]
