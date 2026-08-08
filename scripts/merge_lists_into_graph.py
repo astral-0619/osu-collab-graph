@@ -30,11 +30,15 @@ def main():
         for c_uid, c_name in rec["imgs"]:
             if c_uid != u:
                 outbound[u][c_uid] += 1
-                names_seen.setdefault(c_uid, c_name)
+                names_seen.setdefault(c_uid, "")
+                if c_name and not names_seen[c_uid]:
+                    names_seen[c_uid] = c_name
         for c_uid, c_name in rec["urls"]:
             if c_uid != u:
                 url_only[u][c_uid] += 1
-                names_seen.setdefault(c_uid, c_name)
+                names_seen.setdefault(c_uid, "")
+                if c_name and not names_seen[c_uid]:
+                    names_seen[c_uid] = c_name
 
     # 边 + 权重
     weight = {}
