@@ -22,6 +22,13 @@ def main():
     nf = BASE / "data" / "name_map.json"
     if nf.exists():
         name_map = json.loads(nf.read_text(encoding="utf-8"))
+    # 维度注册表：data/<field>_map.json 自动附加为节点属性（name_map 除外，它是标签）
+    dims = {}
+    for mf in (BASE / "data").glob("*_map.json"):
+        field = mf.name[: -len("_map.json")]
+        if field == "name":
+            continue
+        dims[field] = json.loads(mf.read_text(encoding="utf-8"))
 
     outbound = defaultdict(Counter)   # imagemap 计数
     url_only = defaultdict(Counter)   # [url] 文本链接
@@ -64,12 +71,17 @@ def main():
     nodes = {}
     for u in uids:
         real = name_map.get(str(u)) or ""
-        nodes[u] = {
+        nd = {
             "uid": u,
             "name": real or str(u),  # 只有玩家名；解析不到的显示 uid（不用标注名）
             "total_links": 0,
             "mutual_count": 0,
         }
+        for field, m in dims.items():
+            v = m.get(str(u))
+            if v:
+                nd[field] = v
+        nodes[u] = nd
 
     for a, b in weight:
         w = weight[(a, b)]

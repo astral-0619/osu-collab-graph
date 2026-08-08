@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """社区检测 + 生成前端 graph_data.js（web/ 目录，供 vis-network 页面使用）。"""
 import json
+from collections import Counter, defaultdict
 from pathlib import Path
 
 import community as community_louvain
@@ -27,11 +28,34 @@ def main():
     tm = {}
     if (BASE / "data" / "team_map.json").exists():
         tm = json.loads((BASE / "data" / "team_map.json").read_text(encoding="utf-8"))
+    cm = {}
+    if (BASE / "data" / "country_map.json").exists():
+        cm = json.loads((BASE / "data" / "country_map.json").read_text(encoding="utf-8"))
+    # 热度分（单步份额）：挂你的人把 TA 的份额分给你
+    heat = {}
+    ob = defaultdict(Counter)
+    for line in (BASE / "data" / "collab_lists.jsonl").read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        if rec.get("code") != "200":
+            continue
+        u = rec["uid"]
+        for c_uid, _ in rec["imgs"] + rec["urls"]:
+            if c_uid != u:
+                ob[u][c_uid] += 1
+    out_w = {u: sum(c.values()) for u, c in ob.items()}
+    for p, partners in ob.items():
+        if out_w[p] == 0:
+            continue
+        for u, w in partners.items():
+            heat[u] = heat.get(u, 0.0) + w / out_w[p]
+    heat_rank = {u: i + 1 for i, u in enumerate(sorted(heat, key=lambda u: -heat[u]))}
     nodes_out = [{"id": uid, "label": attr["name"] or str(uid),
                   "value": G.degree(uid), "group": partition[uid],
                   "color": comm_color[partition[uid]], "degree": G.degree(uid),
                   "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0),
-                  "team": tm.get(str(uid), {}).get("name") or tm.get(str(uid), {}).get("short") or None}
+                  "team": tm.get(str(uid)), "country": cm.get(str(uid)),
+                  "heat": round(heat.get(uid, 0.0) * 100, 2),
+                  "heat_rank": heat_rank.get(uid)}
                  for uid, attr in G.nodes(data=True)]
     # Top50 榜：先按累计 collab 张数降序，再按 collab 玩家数降序
     top = sorted(G.nodes(), key=lambda n: (-G.nodes[n].get("total_links", 0), -G.degree(n)))[:100]
