@@ -63,10 +63,16 @@ def extract(html_text):
 def main():
     import sys as _sys
     if "--help" in _sys.argv or "-h" in _sys.argv:
-        print("用法: python3 crawl_collab_lists_v2.py [--fresh]")
-        print("  --fresh  删除断点文件，强制全量重爬（默认增量续爬）")
+        print("用法: python3 crawl_collab_lists_v2.py [--fresh] [--shard-i=N --shard-n=M]")
+        print("  --fresh      删除断点文件，强制全量重爬（默认增量续爬）")
+        print("  --shard-i=N  只爬 todo 中索引 % shard_n == N 的部分（配合 Actions 分片）")
+        print("  --shard-n=M  分片总数（默认 1）")
         return
-    if "--fresh" in _sys.argv:
+    shard_i, shard_n = 0, 1
+    _a = _sys.argv
+    if "--shard-i" in _a: shard_i = int(_a[_a.index("--shard-i") + 1])
+    if "--shard-n" in _a: shard_n = int(_a[_a.index("--shard-n") + 1])
+    if "--fresh" in _a:
         if OUT.exists():
             OUT.unlink()
             print("--fresh: 已删除旧断点，强制全量重爬", flush=True)
@@ -80,7 +86,9 @@ def main():
             except Exception:
                 pass
     todo = [u for u in all_uids if u not in done]
-    print(f"total {len(all_uids)} / done {len(done)} / todo {len(todo)}", flush=True)
+    if shard_n > 1:
+        todo = [u for i, u in enumerate(todo) if i % shard_n == shard_i]
+    print(f"total {len(all_uids)} / done {len(done)} / todo(本片) {len(todo)}", flush=True)
     if not todo:
         print("all crawled", flush=True)
         return
@@ -90,9 +98,12 @@ def main():
         imgs, urls = extract(html_text) if html_text else ([], [])
         return uid, code, imgs, urls
 
+    out_file = OUT
+    if shard_n > 1:
+        out_file = OUT.with_name(f"collab_lists.shard{shard_i}.jsonl")
     with ThreadPoolExecutor(max_workers=3) as ex:
         futs = {ex.submit(work, u): u for u in todo}
-        with OUT.open("a", encoding="utf-8") as f:
+        with out_file.open("a", encoding="utf-8") as f:
             for i, fut in enumerate(as_completed(futs), 1):
                 uid, code, imgs, urls = fut.result()
                 f.write(json.dumps({"uid": uid, "code": code, "imgs": imgs, "urls": urls}, ensure_ascii=False) + "\n")
