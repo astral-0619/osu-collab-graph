@@ -15,7 +15,7 @@ def main():
     data = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
     G = nx.Graph()
     for n in data["nodes"]:
-        G.add_node(n["uid"], name=n["name"], alt=n.get("alt"),
+        G.add_node(n["uid"], name=n["name"],
                    total_links=n.get("total_links", 0), mutual_count=n.get("mutual_count", 0))
     for e in data["edges"]:
         u, v = e[0], e[1]
@@ -24,7 +24,7 @@ def main():
     partition = community_louvain.best_partition(G, random_state=42)
     comm_count = len(set(partition.values()))
     comm_color = {c: PALETTE[c % len(PALETTE)] for c in range(comm_count)}
-    nodes_out = [{"id": uid, "label": attr["name"] or str(uid), "alt": attr.get("alt"),
+    nodes_out = [{"id": uid, "label": attr["name"] or str(uid),
                   "value": G.degree(uid), "group": partition[uid],
                   "color": comm_color[partition[uid]], "degree": G.degree(uid),
                   "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0)}

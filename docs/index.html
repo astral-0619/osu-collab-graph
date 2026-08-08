@@ -39,7 +39,7 @@
   </div>
 </div>
 <script src="vis-network.min.js"></script>
-<script src="graph_data.js?v=12"></script>
+<script src="graph_data.js?v=14"></script>
 <script>
 const D = window.GRAPH_DATA;
 document.getElementById("stat").textContent =
@@ -56,7 +56,6 @@ D.edges.forEach(e => {
 });
 // 排序：先按 collab 图数量（权重）降序，再按对方 collab 玩家数降序
 Object.values(byId).forEach(v => v.nbrs.sort((a,b) => (b.w - a.w) || (b.deg - a.deg)));
-D.nodes.forEach(n => { if (byId[n.id]) byId[n.id].alt = n.alt || null; });
 
 // 边权重 → 颜色/宽度/透明度（w = 两人互相展示的 collab 图数量）
 function edgeStyle(w) {
@@ -157,7 +156,6 @@ function renderPanel(uid) {
   }
   let h = `<div class="btn" style="background:#444" onclick="goBack()">← 返回上一级</div>`;
   h += `<div class="big">${info.name}</div>`;
-  h += (info.alt ? `<div class="muted">collab 图标注: ${info.alt}</div>` : "");
   h += `<div class="muted">collab 玩家: ${info.nbrs.length}｜累计 ${info.total_links} 张｜双向互链 ${info.mutual_count} 人</div>`;
   h += `<a class="btn" href="https://osu.ppy.sh/users/${uid}" target="_blank">打开 osu 主页 ↗</a>`;
   h += `<h3>TA 的 collab 玩家（${info.nbrs.length}）</h3>`;

@@ -83,3 +83,10 @@ cd web && python3 -m http.server 8000
 ## License
 
 MIT
+
+## 数据契约（oines 钦定 2026-08-08）
+
+- 节点标签 = osu 玩家名（API v2 按 uid 解析，持久化于 data/name_map.json）
+- bbcode collab 标注名不作任何参考：不显示、不进 alt、不参与节点命名（仅作为边的证据来源）
+- 解析不到的 uid 显示 uid 本身（绝不用标注名兜底）
+- 重建管线：resolve_usernames.py（刷 name_map）→ merge_lists_into_graph.py（重建）→ generate_web_data.py（出网页数据）

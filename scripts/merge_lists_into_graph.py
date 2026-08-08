@@ -16,6 +16,12 @@ def main():
     old = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
     old_names = {n["uid"]: n["name"] for n in old["nodes"]}
     old_alts = {n["uid"]: n.get("alt") for n in old["nodes"] if n.get("alt")}
+    # uid → 当前玩家名（API 解析的权威标签）。规则（oines 2026-08-08 钦定）：
+    # 节点标签必须用 osu 玩家名，bbcode 标注名不作任何参考（连 alt 都不留）。
+    name_map = {}
+    nf = BASE / "data" / "name_map.json"
+    if nf.exists():
+        name_map = json.loads(nf.read_text(encoding="utf-8"))
 
     outbound = defaultdict(Counter)   # imagemap 计数
     url_only = defaultdict(Counter)   # [url] 文本链接
@@ -57,14 +63,13 @@ def main():
     uids = set(names_seen) | set(outbound) | set(url_only) | SEEDS
     nodes = {}
     for u in uids:
+        real = name_map.get(str(u)) or ""
         nodes[u] = {
             "uid": u,
-            "name": names_seen.get(u) or old_names.get(u) or str(u),
+            "name": real or str(u),  # 只有玩家名；解析不到的显示 uid（不用标注名）
             "total_links": 0,
             "mutual_count": 0,
         }
-        if old_alts.get(u):
-            nodes[u]["alt"] = old_alts[u]
 
     for a, b in weight:
         w = weight[(a, b)]
