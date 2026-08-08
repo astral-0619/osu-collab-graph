@@ -74,8 +74,11 @@ cd web && python3 -m http.server 8000
 ## 局限
 
 - 互链数 = 主页挂链数（出度），非双向互认
+- **画了但没挂链接的同框人不可见**：collab 图是 bbcode imagemap，只统计挂了链接的人；同一张图里没挂链接的角色（群主本人就是例子）在数据里不存在，图是「互链可证」的 collab 子集，真实圈子只大不小
+- 爬虫会撞 osu.ppy.sh 限流（429）：`crawl_collab_lists_v2.py` 带退避重试+断点续传，失败记录保留 code 字段，可过滤后重跑；合并时只采用 code=200 的记录
 - 9 个 restricted/删号账号无法通过 API 解析，保留 collab 图标注名
 - 边按无向处理；collab 图上标注名可能与真名不一致（已尽力用 API 校验）
+- 权重 = 双方主页 imagemap 条目数之和（同框图数量），只有 [url] 文本互链时记 1；占位 uid（<=1000）已过滤
 
 ## License
 
