@@ -67,10 +67,14 @@ const edges = new vis.DataSet(D.edges.map(e => ({ from: e.from, to: e.to, color:
 const container = document.getElementById("network");
 const options = {
   physics: { barnesHut: { gravitationalConstant: -12000, springLength: 130, springConstant: 0.03 }, stabilization: { iterations: 300 } },
-  interaction: { hover: true, tooltipDelay: 80 },
+  interaction: { hover: true, tooltipDelay: 80, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
   nodes: { scaling: { min: 6, max: 60 } },
 };
 const network = new vis.Network(container, { nodes, edges }, options);
+// 布局稳定后关闭物理模拟：拖拽/缩放不再实时算力，浏览更流畅
+network.once("stabilizationIterationsDone", () => {
+  network.setOptions({ physics: { enabled: false } });
+});
 
 let navStack = [];
 let currentUid = null;
@@ -82,7 +86,7 @@ function selectPlayer(uid, opts) {
   if (opts.push && currentUid && currentUid !== uid) navStack.push(currentUid);
   currentUid = uid;
   network.selectNodes([uid]);
-  network.focus(uid, { scale: 1.0, animation: { duration: 500, easingFunction: "easeInOutQuad" } });
+  network.focus(uid, { scale: 1.0 });
   renderPanel(uid);
 }
 
@@ -91,7 +95,7 @@ function goBack() {
     const prev = navStack.pop();
     currentUid = prev;
     network.selectNodes([prev]);
-    network.focus(prev, { scale: 1.0, animation: { duration: 400, easingFunction: "easeInOutQuad" } });
+    network.focus(prev, { scale: 1.0 });
     renderPanel(prev);
   } else {
     currentUid = null;
