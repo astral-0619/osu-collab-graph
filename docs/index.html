@@ -26,9 +26,9 @@
 </head>
 <body>
 <div id="header">
-  <h1>osu! collab 互链图 <span style="font-size:11px;color:#888">(v5 浏览版)</span></h1>
+  <h1>osu! collab 互链图 <span style="font-size:11px;color:#888">(v6 权重版)</span></h1>
   <span class="stat" id="stat"></span>
-  <span style="font-size:12px;color:#aaa">点击玩家 → 右侧看 TA 的 collab 名单，点名单切换，滚轮缩放</span>
+  <span style="font-size:12px;color:#aaa">线色 = 双方 collab 图数量：<span style="color:#888">—</span>1 <span style="color:#4e79a7">—</span>2 <span style="color:#f28e2b">—</span>3-5 <span style="color:#e15759">—</span>6-9 <span style="color:#c0392b">—</span>10+；点击玩家 → 右侧名单</span>
   <a href="https://github.com/astral-0619/osu-collab-graph" target="_blank" style="font-size:12px;color:#6cf;text-decoration:none;margin-left:auto">GitHub ↗</a>
 </div>
 <div id="wrap">
@@ -43,27 +43,42 @@
 <script>
 const D = window.GRAPH_DATA;
 document.getElementById("stat").textContent =
-  D.stats.nodes + " 节点 / " + D.stats.edges + " 边 / " + D.stats.communities + " 社区";
+  D.stats.nodes + " 节点 / " + D.stats.edges + " 边（" + D.stats.mutualEdges + " 条双向，最大 ×" + D.stats.maxWeight + "）";
 
 // 邻接表：uid -> {name, degree, nbrs: [{id,name,deg}]}
 const byId = {};
-D.nodes.forEach(n => byId[n.id] = { name: n.label, degree: n.degree, nbrs: [] });
+D.nodes.forEach(n => byId[n.id] = { name: n.label, degree: n.degree, total_links: n.total_links || 0, mutual_count: n.mutual_count || 0, nbrs: [] });
 D.edges.forEach(e => {
   if (byId[e.from] && byId[e.to]) {
-    byId[e.from].nbrs.push({ id: e.to, name: byId[e.to].name, deg: byId[e.to].degree });
-    byId[e.to].nbrs.push({ id: e.from, name: byId[e.from].name, deg: byId[e.from].degree });
+    byId[e.from].nbrs.push({ id: e.to, name: byId[e.to].name, deg: byId[e.to].degree, w: e.w || 1 });
+    byId[e.to].nbrs.push({ id: e.from, name: byId[e.from].name, deg: byId[e.from].degree, w: e.w || 1 });
   }
 });
 Object.values(byId).forEach(v => v.nbrs.sort((a,b) => b.deg - a.deg));
 D.nodes.forEach(n => { if (byId[n.id]) byId[n.id].alt = n.alt || null; });
 
+// 边权重 → 颜色/宽度/透明度（w = 两人互相展示的 collab 图数量）
+function edgeStyle(w) {
+  if (w >= 10) return { color: "#c0392b", opacity: 0.75, width: 2.6 };
+  if (w >= 6)  return { color: "#e15759", opacity: 0.65, width: 2.1 };
+  if (w >= 3)  return { color: "#f28e2b", opacity: 0.5,  width: 1.5 };
+  if (w >= 2)  return { color: "#4e79a7", opacity: 0.38, width: 1.0 };
+  return { color: "#888888", opacity: 0.15, width: 0.5 };
+}
 const nodes = new vis.DataSet(D.nodes.map(n => ({
   id: n.id, label: n.label, value: n.value,
   color: { background: n.color, border: n.color, highlight: { background: n.color, border: "#fff" } },
   font: { color: "#ddd", size: n.degree >= 50 ? 14 : 11 },
   shape: "dot", borderWidth: 1,
 })));
-const edges = new vis.DataSet(D.edges.map(e => ({ from: e.from, to: e.to, color: { color:"#888", opacity:0.15 }, width: 0.5 })));
+const edges = new vis.DataSet(D.edges.map(e => {
+  const s = edgeStyle(e.w || 1);
+  return {
+    from: e.from, to: e.to, width: s.width,
+    color: { color: s.color, opacity: s.opacity, highlight: s.color },
+    title: `${byId[e.from].name} ↔ ${byId[e.to].name}：${e.w} 张 collab`,
+  };
+}));
 const container = document.getElementById("network");
 const options = {
   physics: { barnesHut: { gravitationalConstant: -12000, springLength: 130, springConstant: 0.03 }, stabilization: { iterations: 300 } },
@@ -121,11 +136,12 @@ function renderPanel(uid) {
   let h = `<div class="btn" style="background:#444" onclick="goBack()">← 返回上一级</div>`;
   h += `<div class="big">${info.name}</div>`;
   h += (info.alt ? `<div class="muted">collab 图标注: ${info.alt}</div>` : "");
-  h += `<div class="muted">互链数: ${info.degree}｜collab 玩家: ${info.nbrs.length}</div>`;
+  h += `<div class="muted">collab 玩家: ${info.nbrs.length}｜累计 ${info.total_links} 张｜双向互链 ${info.mutual_count} 人</div>`;
   h += `<a class="btn" href="https://osu.ppy.sh/users/${uid}" target="_blank">打开 osu 主页 ↗</a>`;
   h += `<h3>TA 的 collab 玩家（${info.nbrs.length}）</h3>`;
   info.nbrs.forEach(nb => {
-    h += `<div class="nbr-row" onclick="selectPlayer(${nb.id}, {push:true})">${nb.name} <span class="muted">(${nb.deg})</span></div>`;
+    const badge = nb.w >= 2 ? ` <span class="muted" style="color:#e15759">×${nb.w}</span>` : "";
+    h += `<div class="nbr-row" onclick="selectPlayer(${nb.id}, {push:true})">${nb.name}${badge} <span class="muted">(${nb.deg})</span></div>`;
   });
   p.innerHTML = h;
   p.scrollTop = 0;

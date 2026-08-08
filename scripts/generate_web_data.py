@@ -15,21 +15,33 @@ def main():
     data = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
     G = nx.Graph()
     for n in data["nodes"]:
-        G.add_node(n["uid"], name=n["name"], alt=n.get("alt"))
-    for u, v in data["edges"]:
-        G.add_edge(u, v)
+        G.add_node(n["uid"], name=n["name"], alt=n.get("alt"),
+                   total_links=n.get("total_links", 0), mutual_count=n.get("mutual_count", 0))
+    for e in data["edges"]:
+        u, v = e[0], e[1]
+        w = e[2] if len(e) > 2 else 1
+        G.add_edge(u, v, weight=w)
     partition = community_louvain.best_partition(G, random_state=42)
     comm_count = len(set(partition.values()))
     comm_color = {c: PALETTE[c % len(PALETTE)] for c in range(comm_count)}
     nodes_out = [{"id": uid, "label": attr["name"] or str(uid), "alt": attr.get("alt"),
                   "value": G.degree(uid), "group": partition[uid],
-                  "color": comm_color[partition[uid]], "degree": G.degree(uid)}
+                  "color": comm_color[partition[uid]], "degree": G.degree(uid),
+                  "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0)}
                  for uid, attr in G.nodes(data=True)]
     top = sorted([(n, G.degree(n)) for n in G.nodes()], key=lambda x: -x[1])[:50]
+    edge_data = []
+    weights = []
+    for u, v, a in G.edges(data=True):
+        w = a.get("weight", 1)
+        weights.append(w)
+        edge_data.append({"from": u, "to": v, "w": w})
     js = {
         "nodes": nodes_out,
-        "edges": [{"from": u, "to": v} for u, v in G.edges()],
-        "stats": {"nodes": len(nodes_out), "edges": len(G.edges()), "communities": comm_count},
+        "edges": edge_data,
+        "stats": {"nodes": len(nodes_out), "edges": len(G.edges()), "communities": comm_count,
+                  "maxWeight": max(weights) if weights else 1,
+                  "mutualEdges": sum(1 for w in weights if w >= 2)},
         "topHubs": [{"name": G.nodes[n]["name"] or str(n), "deg": d} for n, d in top],
         "commColors": {str(c): comm_color[c] for c in range(comm_count)},
     }
