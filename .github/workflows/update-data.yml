@@ -5,6 +5,10 @@ on:
     # UTC 周五 16:00 = 北京时间周六 00:00，每周全量刷新
     - cron: '0 16 * * 5'
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'data/crawl-trigger'
 
 concurrency:
   group: update-collab-data
@@ -98,6 +102,17 @@ jobs:
 
       - name: 自检（问题会 fail）
         run: python3 scripts/selfcheck.py
+
+      - name: 清理触发文件
+        run: |
+          rm -f data/crawl-trigger
+          git add -A
+          git config user.name "astral-0619"
+          git config user.email "3794477609@qq.com"
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: 清理 crawl-trigger [skip ci]"
+            git push
+          fi
 
       - name: 提交并推送
         run: |
