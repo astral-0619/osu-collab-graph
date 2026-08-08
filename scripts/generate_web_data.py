@@ -29,7 +29,8 @@ def main():
                   "color": comm_color[partition[uid]], "degree": G.degree(uid),
                   "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0)}
                  for uid, attr in G.nodes(data=True)]
-    top = sorted([(n, G.degree(n)) for n in G.nodes()], key=lambda x: -x[1])[:50]
+    # Top50 榜：先按累计 collab 张数降序，再按 collab 玩家数降序
+    top = sorted(G.nodes(), key=lambda n: (-G.nodes[n].get("total_links", 0), -G.degree(n)))[:50]
     edge_data = []
     weights = []
     for u, v, a in G.edges(data=True):
@@ -42,7 +43,8 @@ def main():
         "stats": {"nodes": len(nodes_out), "edges": len(G.edges()), "communities": comm_count,
                   "maxWeight": max(weights) if weights else 1,
                   "mutualEdges": sum(1 for w in weights if w >= 2)},
-        "topHubs": [{"name": G.nodes[n]["name"] or str(n), "deg": d} for n, d in top],
+        "topHubs": [{"name": G.nodes[n]["name"] or str(n), "deg": G.degree(n),
+                     "links": G.nodes[n].get("total_links", 0)} for n in top],
         "commColors": {str(c): comm_color[c] for c in range(comm_count)},
     }
     out = BASE / "docs" / "graph_data.js"
