@@ -111,6 +111,39 @@ def team(name):
             if t and q in str(t).lower()]
 
 
+def preload():
+    """预载所有数据 + 常用结构，返回给 eval 模式的命名空间。"""
+    g, nm, tm, cm = load()
+    names = {n["uid"]: n["name"] for n in g["nodes"]}
+    node_by_uid = {n["uid"]: n for n in g["nodes"]}
+    ob = outbound()
+    A, _ = heat()
+    try:
+        import community as community_louvain
+        import networkx as nx
+        G = nx.Graph()
+        for n in g["nodes"]:
+            G.add_node(n["uid"])
+        for a, b, w in g["edges"]:
+            G.add_edge(a, b, weight=w)
+        part = community_louvain.best_partition(G, random_state=42)
+    except ImportError:
+        part = {}
+    return {"g": g, "nm": nm, "tm": tm, "cm": cm, "names": names,
+            "node": node_by_uid, "outbound": ob, "heat": A, "community": part}
+
+
+def eval_expr(expr):
+    ns = preload()
+    ns["json"] = json
+    from collections import Counter
+    ns["Counter"] = Counter
+    # 注意：不能显式传 {"__builtins__": {}}——CPython 已知怪癖：
+    # eval 里显式给空 builtins 会导致 genexpr 帧找不到 globals（NameError）。
+    # 不传则自动注入真 builtins，genexpr/listcomp 都正常。
+    return eval(expr, ns)
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else "heat"
     if cmd == "profile":
@@ -126,3 +159,6 @@ if __name__ == "__main__":
     elif cmd == "team":
         for m in team(sys.argv[2]):
             print(m["uid"], m["name"])
+    elif cmd == "eval":
+        r = eval_expr(sys.argv[2])
+        print(json.dumps(r, ensure_ascii=False, indent=1, default=str))
