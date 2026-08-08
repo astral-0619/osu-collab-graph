@@ -23,6 +23,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--field", required=True, help="维度名（name/team/country/...）")
     ap.add_argument("--web-fallback", action="store_true", help="API 拿不到的用网页回退")
+    ap.add_argument("--refresh", action="store_true",
+                    help="忽略已有缓存强制全量重拉（默认增量：只拉新增/缺失）")
     args = ap.parse_args()
     field = args.field
     if field not in FIELD_EXTRACT:
@@ -35,7 +37,8 @@ def main():
     uids = sorted(n["uid"] for n in graph["nodes"])
 
     out_file = BASE / "data" / f"{field}_map.json"
-    old = json.loads(out_file.read_text(encoding="utf-8")) if out_file.exists() else {}
+    old = {} if args.refresh else (
+        json.loads(out_file.read_text(encoding="utf-8")) if out_file.exists() else {})
     todo = [u for u in uids if str(u) not in old]
     print(f"共 {len(uids)}，已有 {len(uids)-len(todo)} 缓存，需拉 {len(todo)}", flush=True)
 

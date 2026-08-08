@@ -28,6 +28,7 @@
 <div id="header">
   <h1>osu! collab 互链图 <span style="font-size:11px;color:#888">(v6 权重版)</span></h1>
   <span class="stat" id="stat"></span>
+  <span style="font-size:11px;color:#999" id="updated"></span>
   <span style="font-size:12px;color:#aaa">点击玩家才显示 TA 的连线（线色 = 双方 collab 图数：灰1 蓝2 橙3-5 红6-9 深红10+），点空白收起</span>
   <a href="https://github.com/astral-0619/osu-collab-graph" target="_blank" style="font-size:12px;color:#6cf;text-decoration:none;margin-left:auto">GitHub ↗</a>
 </div>
@@ -44,6 +45,11 @@
 const D = window.GRAPH_DATA;
 document.getElementById("stat").textContent =
   D.stats.nodes + " 节点 / " + D.stats.edges + " 边（" + D.stats.mutualEdges + " 条双向，最大 ×" + D.stats.maxWeight + "）";
+  if (D.updatedAt) {
+    const d = new Date(D.updatedAt * 1000);
+    document.getElementById("updated").textContent =
+      "数据更新于 " + d.toLocaleDateString("zh-CN") + " " + d.toLocaleTimeString("zh-CN", {hour:"2-digit", minute:"2-digit"});
+  }
 
 // 邻接表：uid -> {name, degree, nbrs: [{id,name,deg}]}
 const byId = {};

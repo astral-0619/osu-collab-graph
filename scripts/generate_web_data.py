@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """社区检测 + 生成前端 graph_data.js（web/ 目录，供 vis-network 页面使用）。"""
 import json
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
@@ -74,6 +75,7 @@ def main():
         "topHubs": [{"name": G.nodes[n]["name"] or str(n), "deg": G.degree(n),
                      "links": G.nodes[n].get("total_links", 0)} for n in top],
         "commColors": {str(c): comm_color[c] for c in range(comm_count)},
+        "updatedAt": int(time.time()),
     }
     out = BASE / "docs" / "graph_data.js"
     out.write_text("window.GRAPH_DATA = " + json.dumps(js, ensure_ascii=False) + ";", encoding="utf-8")

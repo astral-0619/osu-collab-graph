@@ -61,6 +61,15 @@ def extract(html_text):
     return imgs, urls
 
 def main():
+    import sys as _sys
+    if "--help" in _sys.argv or "-h" in _sys.argv:
+        print("用法: python3 crawl_collab_lists_v2.py [--fresh]")
+        print("  --fresh  删除断点文件，强制全量重爬（默认增量续爬）")
+        return
+    if "--fresh" in _sys.argv:
+        if OUT.exists():
+            OUT.unlink()
+            print("--fresh: 已删除旧断点，强制全量重爬", flush=True)
     graph = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
     all_uids = sorted(n["uid"] for n in graph["nodes"])
     done = set()

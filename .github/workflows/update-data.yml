@@ -1,0 +1,56 @@
+name: update-collab-data
+
+on:
+  schedule:
+    # UTC 周五 16:00 = 北京时间周六 00:00，每周全量刷新
+    - cron: '0 16 * * 5'
+  workflow_dispatch:
+
+concurrency:
+  group: update-collab-data
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装依赖
+        run: pip install requests networkx python-louvain
+
+      - name: 全量重爬（--fresh 强制；429 退避 + 断点续传兜底）
+        run: python3 scripts/crawl_collab_lists_v2.py --fresh
+
+      - name: 刷维度（name 全量 / team / country）
+        env:
+          OSU_CLIENT_ID: ${{ secrets.OSU_CLIENT_ID }}
+          OSU_CLIENT_SECRET: ${{ secrets.OSU_CLIENT_SECRET }}
+        run: |
+          python3 scripts/fetch_dimension.py --field=name --refresh --web-fallback
+          python3 scripts/fetch_dimension.py --field=team
+          python3 scripts/fetch_dimension.py --field=country
+
+      - name: 重建图 + 出网页数据
+        run: |
+          python3 scripts/merge_lists_into_graph.py
+          python3 scripts/generate_web_data.py
+
+      - name: 自检（问题会 fail）
+        run: python3 scripts/selfcheck.py
+
+      - name: 提交并推送
+        run: |
+          git config user.name "astral-0619"
+          git config user.email "3794477609@qq.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "无数据变化，跳过提交"
+          else
+            git commit -m "chore(data): 自动更新 $(date -u +%Y-%m-%d) [skip ci]"
+            git push
+          fi
