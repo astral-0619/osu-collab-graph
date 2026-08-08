@@ -101,7 +101,7 @@ function hideAllEdges() {
 const container = document.getElementById("network");
 const options = {
   physics: { barnesHut: { gravitationalConstant: -12000, springLength: 130, springConstant: 0.03, theta: 0.8 }, stabilization: { iterations: 120 } },
-  interaction: { hover: true, tooltipDelay: 80, hideEdgesOnDrag: true, hideEdgesOnZoom: true, hideLabelsOnDrag: true, hideLabelsOnZoom: true },
+  interaction: { hover: true, tooltipDelay: 80, hideEdgesOnDrag: true, hideEdgesOnZoom: true },
   nodes: { scaling: { min: 6, max: 60 } },
 };
 const network = new vis.Network(container, { nodes, edges }, options);
