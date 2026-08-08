@@ -28,7 +28,7 @@
 <div id="header">
   <h1>osu! collab 互链图 <span style="font-size:11px;color:#888">(v6 权重版)</span></h1>
   <span class="stat" id="stat"></span>
-  <span style="font-size:12px;color:#aaa">线色 = 双方 collab 图数量：<span style="color:#888">—</span>1 <span style="color:#4e79a7">—</span>2 <span style="color:#f28e2b">—</span>3-5 <span style="color:#e15759">—</span>6-9 <span style="color:#c0392b">—</span>10+；点击玩家 → 右侧名单</span>
+  <span style="font-size:12px;color:#aaa">点击玩家才显示 TA 的连线（线色 = 双方 collab 图数：灰1 蓝2 橙3-5 红6-9 深红10+），点空白收起</span>
   <a href="https://github.com/astral-0619/osu-collab-graph" target="_blank" style="font-size:12px;color:#6cf;text-decoration:none;margin-left:auto">GitHub ↗</a>
 </div>
 <div id="wrap">
@@ -71,14 +71,32 @@ const nodes = new vis.DataSet(D.nodes.map(n => ({
   font: { color: "#ddd", size: n.degree >= 50 ? 14 : 11 },
   shape: "dot", borderWidth: 1,
 })));
-const edges = new vis.DataSet(D.edges.map(e => {
+const edges = new vis.DataSet(D.edges.map((e, i) => {
   const s = edgeStyle(e.w || 1);
   return {
-    from: e.from, to: e.to, width: s.width,
+    id: i, from: e.from, to: e.to, width: s.width, hidden: true,
     color: { color: s.color, opacity: s.opacity, highlight: s.color },
     title: `${byId[e.from].name} ↔ ${byId[e.to].name}：${e.w} 张 collab`,
   };
 }));
+// uid -> 相连的边 id 列表
+const edgeIndex = {};
+D.edges.forEach((e, i) => {
+  (edgeIndex[e.from] = edgeIndex[e.from] || []).push(i);
+  (edgeIndex[e.to] = edgeIndex[e.to] || []).push(i);
+});
+function showEdgesFor(uid) {
+  const updates = [];
+  D.edges.forEach((e, i) => {
+    if (e.from === uid || e.to === uid) updates.push({ id: i, hidden: false });
+  });
+  edges.update(updates);
+}
+function hideAllEdges() {
+  const updates = [];
+  for (let i = 0; i < D.edges.length; i++) updates.push({ id: i, hidden: true });
+  edges.update(updates);
+}
 const container = document.getElementById("network");
 const options = {
   physics: { barnesHut: { gravitationalConstant: -12000, springLength: 130, springConstant: 0.03 }, stabilization: { iterations: 300 } },
@@ -102,6 +120,7 @@ function selectPlayer(uid, opts) {
   currentUid = uid;
   network.selectNodes([uid]);
   network.focus(uid, { scale: 1.0 });
+  showEdgesFor(uid);
   renderPanel(uid);
 }
 
@@ -111,10 +130,12 @@ function goBack() {
     currentUid = prev;
     network.selectNodes([prev]);
     network.focus(prev, { scale: 1.0 });
+    showEdgesFor(prev);
     renderPanel(prev);
   } else {
     currentUid = null;
     network.unselectAll();
+    hideAllEdges();
     renderPanel(null);
   }
 }
@@ -149,7 +170,7 @@ function renderPanel(uid) {
 
 network.on("click", function(params) {
   if (params.nodes.length) selectPlayer(params.nodes[0], {push:true});
-  else { network.unselectAll(); renderPanel(null); }
+  else { currentUid = null; network.unselectAll(); hideAllEdges(); renderPanel(null); }
 });
 
 const inp = document.getElementById("search");
