@@ -32,6 +32,9 @@ def main():
     cm = {}
     if (BASE / "data" / "country_map.json").exists():
         cm = json.loads((BASE / "data" / "country_map.json").read_text(encoding="utf-8"))
+    sm = {}
+    if (BASE / "data" / "stats_map.json").exists():
+        sm = json.loads((BASE / "data" / "stats_map.json").read_text(encoding="utf-8"))
     # 热度分（单步份额）：挂你的人把 TA 的份额分给你
     heat = {}
     ob = defaultdict(Counter)
@@ -55,6 +58,7 @@ def main():
                   "color": comm_color[partition[uid]], "degree": G.degree(uid),
                   "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0),
                   "team": tm.get(str(uid)), "country": cm.get(str(uid)),
+                  "stats": sm.get(str(uid)),
                   "heat": round(heat.get(uid, 0.0) * 100, 2),
                   "heat_rank": heat_rank.get(uid)}
                  for uid, attr in G.nodes(data=True)]

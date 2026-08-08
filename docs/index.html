@@ -163,6 +163,23 @@ function renderPanel(uid) {
   let h = `<div class="btn" style="background:#444" onclick="goBack()">← 返回上一级</div>`;
   h += `<div class="big">${info.name}</div>`;
   h += `<div class="muted">collab 玩家: ${info.nbrs.length}｜累计 ${info.total_links} 张｜双向互链 ${info.mutual_count} 人</div>`;
+  if (info.stats && info.stats.join_date) {
+    h += `<div class="muted">注册于 ${info.stats.join_date.slice(0,10)}</div>`;
+  }
+  if (info.stats && info.stats.modes) {
+    const labels = {osu:"std", taiko:"taiko", fruits:"ctb", mania:"mania"};
+    h += `<h3 style="margin-bottom:4px">成绩（4 模式）</h3>`;
+    for (const [mk, label] of Object.entries(labels)) {
+      const s = info.stats.modes[mk];
+      if (!s) continue;
+      const pp = s.pp ? `${s.pp}pp` : "-";
+      const gr = s.global_rank ? `#${s.global_rank}` : "-";
+      const cr = s.country_rank ? `(#${s.country_rank} ${info.country||""})` : "";
+      const t = s.play_time ? `${Math.round(s.play_time/3600)}h` : "-";
+      const pc = s.play_count ? `${s.play_count} 次` : "-";
+      h += `<div class="muted">${label}: ${pp} ｜ 全球 ${gr} ${cr} ｜ 游戏 ${t} ｜ ${pc}</div>`;
+    }
+  }
   h += `<a class="btn" href="https://osu.ppy.sh/users/${uid}" target="_blank">打开 osu 主页 ↗</a>`;
   h += `<h3>TA 的 collab 玩家（${info.nbrs.length}）</h3>`;
   info.nbrs.forEach(nb => {

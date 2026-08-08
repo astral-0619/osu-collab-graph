@@ -65,7 +65,10 @@ osu! 玩家主页的 raw BBCode（页面 `data-initial-data` JSON）。两种互
 | 真实用户名 | `name_map.json` | 3686/3732 | API v2 批量解析（50/请求） |
 | 战队 | `team_map.json` | 3487/3732 | API v2 用户详情 |
 | 地区 | `country_map.json` | 3241/3732 | API v2 用户详情 |
+| 成绩 | `stats_map.json` | 4 模式全量 | API v2（批量 rulesets + 单用户补注册/地区排名） |
 | 热度分 | `web/graph_data.js` 内联 | 3729 | 单步份额分（见下） |
+
+**成绩维度**（`--field=stats`）：每节点 4 模式（std/taiko/ctb/mania）的 pp、游戏时间、游戏次数、全球排名、地区排名，外加注册时间。批量接口直接返回 `statistics_rulesets`（4 模式核心字段），`join_date`/`country_rank` 走单用户接口补（3 并发 + 每 100 人落盘）。
 
 **热度分**：标准 PageRank 在大强连通块上会塌陷成均匀分布，故改用单步份额分——把挂你的人的份额分给你，被精选挂 = 高分。「一挂成名」现象：挂的人少但被大枢纽挂，热度反超张数多的人。
 

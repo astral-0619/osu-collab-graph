@@ -114,6 +114,10 @@ def team(name):
 def preload():
     """预载所有数据 + 常用结构，返回给 eval 模式的命名空间。"""
     g, nm, tm, cm = load()
+    sm = {}
+    p = Path(__file__).resolve().parent.parent / "data" / "stats_map.json"
+    if p.exists():
+        sm = json.loads(p.read_text(encoding="utf-8"))
     names = {n["uid"]: n["name"] for n in g["nodes"]}
     node_by_uid = {n["uid"]: n for n in g["nodes"]}
     ob = outbound()
@@ -130,7 +134,7 @@ def preload():
     except ImportError:
         part = {}
     return {"g": g, "nm": nm, "tm": tm, "cm": cm, "names": names,
-            "node": node_by_uid, "outbound": ob, "heat": A, "community": part}
+            "node": node_by_uid, "outbound": ob, "heat": A, "community": part, "sm": sm}
 
 
 def eval_expr(expr):

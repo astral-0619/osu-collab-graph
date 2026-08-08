@@ -37,6 +37,7 @@ jobs:
           python3 scripts/fetch_dimension.py --field=name --refresh --web-fallback
           python3 scripts/fetch_dimension.py --field=team
           python3 scripts/fetch_dimension.py --field=country
+          python3 scripts/fetch_dimension.py --field=stats
 
       - name: 重建图 + 出网页数据
         run: |
