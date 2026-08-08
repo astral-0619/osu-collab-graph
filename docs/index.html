@@ -29,6 +29,7 @@
   <h1>osu! collab 互链图 <span style="font-size:11px;color:#888">(v5 浏览版)</span></h1>
   <span class="stat" id="stat"></span>
   <span style="font-size:12px;color:#aaa">点击玩家 → 右侧看 TA 的 collab 名单，点名单切换，滚轮缩放</span>
+  <a href="https://github.com/astral-0619/osu-collab-graph" target="_blank" style="font-size:12px;color:#6cf;text-decoration:none;margin-left:auto">GitHub ↗</a>
 </div>
 <div id="wrap">
   <div id="network"></div>
@@ -71,12 +72,32 @@ const options = {
 };
 const network = new vis.Network(container, { nodes, edges }, options);
 
-function selectPlayer(uid) {
+let navStack = [];
+let currentUid = null;
+
+function selectPlayer(uid, opts) {
+  opts = opts || {};
   const info = byId[uid];
   if (!info) return;
+  if (opts.push && currentUid && currentUid !== uid) navStack.push(currentUid);
+  currentUid = uid;
   network.selectNodes([uid]);
   network.focus(uid, { scale: 1.0, animation: { duration: 500, easingFunction: "easeInOutQuad" } });
   renderPanel(uid);
+}
+
+function goBack() {
+  if (navStack.length) {
+    const prev = navStack.pop();
+    currentUid = prev;
+    network.selectNodes([prev]);
+    network.focus(prev, { scale: 1.0, animation: { duration: 400, easingFunction: "easeInOutQuad" } });
+    renderPanel(prev);
+  } else {
+    currentUid = null;
+    network.unselectAll();
+    renderPanel(null);
+  }
 }
 
 function renderPanel(uid) {
@@ -87,27 +108,27 @@ function renderPanel(uid) {
     let h = `<h3>全图枢纽 Top50（点击查看）</h3>`;
     D.topHubs.forEach((hub, i) => {
       const nodeId = D.nodes.find(n => n.label === hub.name).id;
-      h += `<div class="player-row" onclick="selectPlayer(${nodeId})">${i+1}. ${hub.name} <span class="muted">(${hub.deg})</span></div>`;
+      h += `<div class="player-row" onclick="selectPlayer(${nodeId}, {})">${i+1}. ${hub.name} <span class="muted">(${hub.deg})</span></div>`;
     });
     h += `<div class="muted" style="margin-top:10px">点击图中节点查看该玩家的 collab 名单</div>`;
     p.innerHTML = h;
     return;
   }
-  let h = `<div class="btn" style="background:#444" onclick="network.unselectAll();renderPanel(null)">← 返回排行榜</div>`;
+  let h = `<div class="btn" style="background:#444" onclick="goBack()">← 返回上一级</div>`;
   h += `<div class="big">${info.name}</div>`;
   h += (info.alt ? `<div class="muted">collab 图标注: ${info.alt}</div>` : "");
   h += `<div class="muted">互链数: ${info.degree}｜collab 玩家: ${info.nbrs.length}</div>`;
   h += `<a class="btn" href="https://osu.ppy.sh/users/${uid}" target="_blank">打开 osu 主页 ↗</a>`;
   h += `<h3>TA 的 collab 玩家（${info.nbrs.length}）</h3>`;
   info.nbrs.forEach(nb => {
-    h += `<div class="nbr-row" onclick="selectPlayer(${nb.id})">${nb.name} <span class="muted">(${nb.deg})</span></div>`;
+    h += `<div class="nbr-row" onclick="selectPlayer(${nb.id}, {push:true})">${nb.name} <span class="muted">(${nb.deg})</span></div>`;
   });
   p.innerHTML = h;
   p.scrollTop = 0;
 }
 
 network.on("click", function(params) {
-  if (params.nodes.length) selectPlayer(params.nodes[0]);
+  if (params.nodes.length) selectPlayer(params.nodes[0], {push:true});
   else { network.unselectAll(); renderPanel(null); }
 });
 
@@ -117,7 +138,7 @@ inp.addEventListener("keydown", function(e) {
   const q = inp.value.trim().toLowerCase();
   if (!q) return;
   const hit = D.nodes.find(n => n.label && n.label.toLowerCase().includes(q));
-  if (hit) selectPlayer(hit.id);
+  if (hit) selectPlayer(hit.id, {});
   else inp.style.borderColor = "#c33";
 });
 renderPanel(null);
