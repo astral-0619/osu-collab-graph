@@ -50,7 +50,7 @@ def fetch_stats():
                 qs = urllib.parse.urlencode([("ids[]", u) for u in batch])
                 req = urllib.request.Request("https://osu.ppy.sh/api/v2/users?" + qs,
                     headers={"Authorization": "Bearer " + tok, "Accept": "application/json"})
-                with urllib.request.urlopen(req, timeout=30) as r:
+                with urllib.request.urlopen(req, timeout=15) as r:
                     for u in json.load(r)["users"]:
                         sr = u.get("statistics_rulesets") or {}
                         entry = real.setdefault(str(u["id"]), {})
@@ -90,17 +90,17 @@ def fetch_stats():
     print(f"阶段 B: 需补 join_date/country_rank {len(need)} 人 × 4 模式", flush=True)
     import concurrent.futures as cf
 
-    def api_json(url, tok, attempts=4):
+    def api_json(url, tok, attempts=2):
         for a in range(attempts):
             try:
                 req = urllib.request.Request(url,
                     headers={"Authorization": "Bearer " + tok, "Accept": "application/json"})
-                with urllib.request.urlopen(req, timeout=30) as r:
+                with urllib.request.urlopen(req, timeout=8) as r:
                     return json.load(r)
             except Exception:
                 if a == attempts - 1:
                     return None
-                time.sleep(2 + a * 2)
+                time.sleep(0.5 + a * 0.5)
         return None
 
     def fetch_one(uid):
@@ -116,7 +116,7 @@ def fetch_stats():
         return uid, out
 
     done = 0
-    with cf.ThreadPoolExecutor(max_workers=3) as ex:
+    with cf.ThreadPoolExecutor(max_workers=4) as ex:
         for uid, res in ex.map(fetch_one, need):
             entry = real.setdefault(str(uid), {})
             entry.setdefault("modes", {})

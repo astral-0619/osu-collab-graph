@@ -3,6 +3,7 @@
 import json, os, sys, time, urllib.parse, urllib.request
 
 ENV_FILE = "/workspace/.osu_api.env"
+TOKEN_CACHE = "/tmp/osu_token_cache.json"
 
 
 def load_creds():
@@ -21,9 +22,30 @@ def load_creds():
 
 
 def get_token(cid, sec):
+    # token 24h 有效，缓存复用避免限流窗口内再打 token 接口
+    if os.path.exists(TOKEN_CACHE):
+        try:
+            c = json.load(open(TOKEN_CACHE))
+            if c.get("expires", 0) > time.time() + 300:
+                return c["token"]
+        except Exception:
+            pass
     body = urllib.parse.urlencode({"client_id": cid, "client_secret": sec,
                                    "grant_type": "client_credentials", "scope": "public"})
     req = urllib.request.Request("https://osu.ppy.sh/oauth/token", data=body.encode(),
         headers={"Content-Type": "application/x-www-form-urlencoded", "User-Agent": "osu-collab-graph/1.0"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return json.load(r)["access_token"]
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(req, timeout=20) as r:
+                tok = json.load(r)["access_token"]
+                json.dump({"token": tok, "expires": time.time() + 24 * 3600},
+                          open(TOKEN_CACHE, "w"))
+                return tok
+        except urllib.error.HTTPError as e:
+            if attempt == 2:
+                raise
+            time.sleep(15 * (attempt + 1))
+        except Exception:
+            if attempt == 2:
+                raise
+            time.sleep(3 * (attempt + 1))
