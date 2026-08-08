@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>osu! collab 互链图 (v5 浏览版)</title>
+<style>
+  body { margin:0; font-family: "PingFang SC","Microsoft YaHei",sans-serif; background:#111; color:#eee; }
+  #header { padding:10px 16px; background:#1a1a2e; border-bottom:1px solid #333; display:flex; flex-wrap:wrap; gap:16px; align-items:center; }
+  #header h1 { font-size:16px; margin:0; }
+  .stat { font-size:13px; color:#9f9; }
+  #wrap { display:flex; height:calc(100vh - 52px); }
+  #network { flex:1; }
+  #side { width:300px; background:#16161f; padding:12px; overflow-y:auto; font-size:13px; border-left:1px solid #333; }
+  #side h3 { font-size:13px; margin:8px 0 6px; color:#ffd700; }
+  #search { width:100%; box-sizing:border-box; padding:6px; margin-bottom:8px; border:1px solid #555; background:#222; color:#eee; border-radius:4px; }
+  .player-row { padding:4px 6px; cursor:pointer; border-radius:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .player-row:hover { background:#2a2a3a; }
+  .player-row.selected { background:#3a3a5a; }
+  .nbr-row { padding:3px 6px; cursor:pointer; border-radius:4px; }
+  .nbr-row:hover { background:#2a2a3a; }
+  .btn { display:inline-block; margin:6px 4px 6px 0; padding:5px 10px; background:#2a4a7a; color:#fff; border-radius:4px; cursor:pointer; text-decoration:none; font-size:12px; }
+  .btn:hover { background:#3a5a9a; }
+  .muted { color:#888; font-size:12px; }
+  .big { font-size:18px; font-weight:bold; }
+</style>
+</head>
+<body>
+<div id="header">
+  <h1>osu! collab 互链图 <span style="font-size:11px;color:#888">(v5 浏览版)</span></h1>
+  <span class="stat" id="stat"></span>
+  <span style="font-size:12px;color:#aaa">点击玩家 → 右侧看 TA 的 collab 名单，点名单切换，滚轮缩放</span>
+</div>
+<div id="wrap">
+  <div id="network"></div>
+  <div id="side">
+    <input id="search" placeholder="搜索玩家名… (回车)">
+    <div id="panel"></div>
+  </div>
+</div>
+<script src="vis-network.min.js"></script>
+<script src="graph_data.js"></script>
+<script>
+const D = window.GRAPH_DATA;
+document.getElementById("stat").textContent =
+  D.stats.nodes + " 节点 / " + D.stats.edges + " 边 / " + D.stats.communities + " 社区";
+
+// 邻接表：uid -> {name, degree, nbrs: [{id,name,deg}]}
+const byId = {};
+D.nodes.forEach(n => byId[n.id] = { name: n.label, degree: n.degree, nbrs: [] });
+D.edges.forEach(e => {
+  if (byId[e.from] && byId[e.to]) {
+    byId[e.from].nbrs.push({ id: e.to, name: byId[e.to].name, deg: byId[e.to].degree });
+    byId[e.to].nbrs.push({ id: e.from, name: byId[e.from].name, deg: byId[e.from].degree });
+  }
+});
+Object.values(byId).forEach(v => v.nbrs.sort((a,b) => b.deg - a.deg));
+D.nodes.forEach(n => { if (byId[n.id]) byId[n.id].alt = n.alt || null; });
+
+const nodes = new vis.DataSet(D.nodes.map(n => ({
+  id: n.id, label: n.label, value: n.value,
+  color: { background: n.color, border: n.color, highlight: { background: n.color, border: "#fff" } },
+  font: { color: "#ddd", size: n.degree >= 50 ? 14 : 11 },
+  shape: "dot", borderWidth: 1,
+})));
+const edges = new vis.DataSet(D.edges.map(e => ({ from: e.from, to: e.to, color: { color:"#888", opacity:0.15 }, width: 0.5 })));
+const container = document.getElementById("network");
+const options = {
+  physics: { barnesHut: { gravitationalConstant: -12000, springLength: 130, springConstant: 0.03 }, stabilization: { iterations: 300 } },
+  interaction: { hover: true, tooltipDelay: 80 },
+  nodes: { scaling: { min: 6, max: 60 } },
+};
+const network = new vis.Network(container, { nodes, edges }, options);
+
+function selectPlayer(uid) {
+  const info = byId[uid];
+  if (!info) return;
+  network.selectNodes([uid]);
+  network.focus(uid, { scale: 1.0, animation: { duration: 500, easingFunction: "easeInOutQuad" } });
+  renderPanel(uid);
+}
+
+function renderPanel(uid) {
+  const p = document.getElementById("panel");
+  const info = byId[uid];
+  if (!info) {
+    // 默认态：全图枢纽 Top50
+    let h = `<h3>全图枢纽 Top50（点击查看）</h3>`;
+    D.topHubs.forEach((hub, i) => {
+      const nodeId = D.nodes.find(n => n.label === hub.name).id;
+      h += `<div class="player-row" onclick="selectPlayer(${nodeId})">${i+1}. ${hub.name} <span class="muted">(${hub.deg})</span></div>`;
+    });
+    h += `<div class="muted" style="margin-top:10px">点击图中节点查看该玩家的 collab 名单</div>`;
+    p.innerHTML = h;
+    return;
+  }
+  let h = `<div class="btn" style="background:#444" onclick="network.unselectAll();renderPanel(null)">← 返回排行榜</div>`;
+  h += `<div class="big">${info.name}</div>`;
+  h += (info.alt ? `<div class="muted">collab 图标注: ${info.alt}</div>` : "");
+  h += `<div class="muted">互链数: ${info.degree}｜collab 玩家: ${info.nbrs.length}</div>`;
+  h += `<a class="btn" href="https://osu.ppy.sh/users/${uid}" target="_blank">打开 osu 主页 ↗</a>`;
+  h += `<h3>TA 的 collab 玩家（${info.nbrs.length}）</h3>`;
+  info.nbrs.forEach(nb => {
+    h += `<div class="nbr-row" onclick="selectPlayer(${nb.id})">${nb.name} <span class="muted">(${nb.deg})</span></div>`;
+  });
+  p.innerHTML = h;
+  p.scrollTop = 0;
+}
+
+network.on("click", function(params) {
+  if (params.nodes.length) selectPlayer(params.nodes[0]);
+  else { network.unselectAll(); renderPanel(null); }
+});
+
+const inp = document.getElementById("search");
+inp.addEventListener("keydown", function(e) {
+  if (e.key !== "Enter") return;
+  const q = inp.value.trim().toLowerCase();
+  if (!q) return;
+  const hit = D.nodes.find(n => n.label && n.label.toLowerCase().includes(q));
+  if (hit) selectPlayer(hit.id);
+  else inp.style.borderColor = "#c33";
+});
+renderPanel(null);
+</script>
+</body>
+</html>
