@@ -44,8 +44,8 @@ def fetch_stats():
         if not pending:
             break
         nxt = []
-        for i in range(0, len(pending), 20):
-            batch = pending[i:i + 20]
+        for i in range(0, len(pending), 50):
+            batch = pending[i:i + 50]
             try:
                 qs = urllib.parse.urlencode([("ids[]", u) for u in batch])
                 req = urllib.request.Request("https://osu.ppy.sh/api/v2/users?" + qs,
@@ -64,6 +64,12 @@ def fetch_stats():
                                 "global_rank": st.get("global_rank"),
                                 "accuracy": st.get("hit_accuracy"),
                             }
+                        # 批量响应里直接有 join_date + std 地区排名（省掉单用户请求）
+                        if u.get("join_date"):
+                            entry["join_date"] = u["join_date"]
+                        st_std = u.get("statistics") or {}
+                        if st_std.get("country_rank"):
+                            entry["modes"]["osu"]["country_rank"] = st_std["country_rank"]
                 print(f"  A 批次 {i//50+1}/{len(pending)//50+1} OK", flush=True)
             except urllib.error.HTTPError as e:
                 print(f"  A 批次 HTTPError {e.code}，留待重试", flush=True)
@@ -105,10 +111,6 @@ def fetch_stats():
 
     def fetch_one(uid):
         out = {}
-        u = api_json(f"https://osu.ppy.sh/api/v2/users/{uid}", tok)
-        if u:
-            out["join_date"] = u.get("join_date")
-            out["osu_rank"] = (u.get("statistics") or {}).get("country_rank")
         for mode, label in [("taiko", "taiko"), ("fruits", "fruits"), ("mania", "mania")]:
             u2 = api_json(f"https://osu.ppy.sh/api/v2/users/{uid}/{label}", tok)
             if u2:
@@ -120,10 +122,8 @@ def fetch_stats():
         for uid, res in ex.map(fetch_one, need):
             entry = real.setdefault(str(uid), {})
             entry.setdefault("modes", {})
-            if res.get("join_date"):
-                entry["join_date"] = res["join_date"]
             for k, v in res.items():
-                if k != "join_date" and v is not None:
+                if v is not None:
                     entry["modes"].setdefault(k.replace("_rank", ""), {})["country_rank"] = v
             done += 1
             if done % 100 == 0 or done == len(need):
