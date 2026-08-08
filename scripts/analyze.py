@@ -107,7 +107,7 @@ def team(name):
     g, nm, tm, cm = load()
     names = {n["uid"]: n["name"] for n in g["nodes"]}
     q = name.lower()
-    return [{"uid": u, "name": names.get(u, str(u))} for u, t in tm.items()
+    return [{"uid": u, "name": names.get(int(u), str(u))} for u, t in tm.items()
             if t and q in str(t).lower()]
 
 
