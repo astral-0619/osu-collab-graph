@@ -33,7 +33,7 @@ def main():
         "topHubs": [{"name": G.nodes[n]["name"] or str(n), "deg": d} for n, d in top],
         "commColors": {str(c): comm_color[c] for c in range(comm_count)},
     }
-    out = BASE / "web" / "graph_data.js"
+    out = BASE / "docs" / "graph_data.js"
     out.write_text("window.GRAPH_DATA = " + json.dumps(js, ensure_ascii=False) + ";", encoding="utf-8")
     print(f"generated web/graph_data.js: {len(nodes_out)} nodes / {len(G.edges())} edges / {comm_count} comms")
 

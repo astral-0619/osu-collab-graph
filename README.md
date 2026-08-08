@@ -2,7 +2,7 @@
 
 把 osu! 玩家主页用户页里的 **collab 图**（标注玩家 ID、点击可跳转到对应玩家主页的图片，imagemap）和文本互链爬下来，构建「谁主页挂了谁」的社交互链网络，并提供一个可交互浏览的网页。
 
-在线示例：`http://pve-szx.oines.de:30010/`（作者自托管，可能随时下线）
+在线示例：<https://astral-0619.github.io/osu-collab-graph/>（GitHub Pages 静态托管）
 
 ## 交互说明
 
