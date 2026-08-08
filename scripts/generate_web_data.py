@@ -30,7 +30,7 @@ def main():
                   "total_links": attr.get("total_links", 0), "mutual_count": attr.get("mutual_count", 0)}
                  for uid, attr in G.nodes(data=True)]
     # Top50 榜：先按累计 collab 张数降序，再按 collab 玩家数降序
-    top = sorted(G.nodes(), key=lambda n: (-G.nodes[n].get("total_links", 0), -G.degree(n)))[:50]
+    top = sorted(G.nodes(), key=lambda n: (-G.nodes[n].get("total_links", 0), -G.degree(n)))[:100]
     edge_data = []
     weights = []
     for u, v, a in G.edges(data=True):

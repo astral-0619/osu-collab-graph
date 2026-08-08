@@ -39,7 +39,7 @@
   </div>
 </div>
 <script src="vis-network.min.js"></script>
-<script src="graph_data.js?v=10"></script>
+<script src="graph_data.js?v=11"></script>
 <script>
 const D = window.GRAPH_DATA;
 document.getElementById("stat").textContent =
@@ -146,7 +146,7 @@ function renderPanel(uid) {
   const info = byId[uid];
   if (!info) {
     // 默认态：全图枢纽 Top50
-    let h = `<h3>全图枢纽 Top50（点击查看）</h3>`;
+    let h = `<h3>全图枢纽 Top100（点击查看）</h3>`;
     D.topHubs.forEach((hub, i) => {
       const nodeId = D.nodes.find(n => n.label === hub.name).id;
       h += `<div class="player-row" onclick="selectPlayer(${nodeId}, {})">${i+1}. ${hub.name} <span class="muted">(${hub.deg} 人 · ${hub.links} 张)</span></div>`;
