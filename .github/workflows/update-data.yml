@@ -18,13 +18,9 @@ permissions:
   contents: write
 
 jobs:
-  crawl:
+  update:
     runs-on: ubuntu-latest
     timeout-minutes: 360
-    strategy:
-      fail-fast: false
-      matrix:
-        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,56 +30,20 @@ jobs:
       - name: 安装依赖
         run: pip install requests networkx python-louvain
 
-      - name: 分片重爬（--fresh + shard 4 片并行）
-        run: python3 scripts/crawl_collab_lists_v2.py --fresh --shard-i=${{ matrix.shard }} --shard-n=4
+      - name: 全量重爬（实测 Actions 干净 IP ~67 分钟/3732 uid）
+        run: python3 scripts/crawl_collab_lists_v2.py --fresh
 
-      - name: 提交本片结果
+      - name: 提交爬取结果
         run: |
           git config user.name "astral-0619"
           git config user.email "3794477609@qq.com"
-          git add data/collab_lists.shard${{ matrix.shard }}.jsonl
+          git add data/collab_lists.jsonl
           if git diff --cached --quiet; then
-            echo "本片无数据变化"
+            echo "无数据变化"
           else
-            git commit -m "data: 爬取分片 ${{ matrix.shard }}/4 [skip ci]"
+            git commit -m "data: 全量重爬 $(date -u +%Y-%m-%d) [skip ci]"
             git push
           fi
-
-  update:
-    needs: crawl
-    runs-on: ubuntu-latest
-    timeout-minutes: 360
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-
-      - name: 安装依赖
-        run: pip install requests networkx python-louvain
-
-      - name: 合并分片到 collab_lists.jsonl
-        run: |
-          python3 - <<'PYEOF'
-          import json
-          from pathlib import Path
-          out = Path("data/collab_lists.jsonl")
-          if out.exists():
-              out.unlink()
-          seen = set()
-          with out.open("a", encoding="utf-8") as f:
-              for p in sorted(Path("data").glob("collab_lists.shard*.jsonl")):
-                  for line in p.read_text(encoding="utf-8").splitlines():
-                      try:
-                          o = json.loads(line)
-                      except Exception:
-                          continue
-                      if o["uid"] in seen:
-                          continue
-                      seen.add(o["uid"])
-                      f.write(json.dumps(o, ensure_ascii=False) + "\n")
-          print(f"合并完成: {len(seen)} uid", flush=True)
-          PYEOF
 
       - name: 刷维度（name 全量 / team / country）
         env:

@@ -70,8 +70,11 @@ def main():
         return
     shard_i, shard_n = 0, 1
     _a = _sys.argv
-    if "--shard-i" in _a: shard_i = int(_a[_a.index("--shard-i") + 1])
-    if "--shard-n" in _a: shard_n = int(_a[_a.index("--shard-n") + 1])
+    for _x in _a:
+        if _x.startswith("--shard-i="): shard_i = int(_x.split("=", 1)[1])
+        elif _x == "--shard-i": shard_i = int(_a[_a.index(_x) + 1])
+        if _x.startswith("--shard-n="): shard_n = int(_x.split("=", 1)[1])
+        elif _x == "--shard-n": shard_n = int(_a[_a.index(_x) + 1])
     if "--fresh" in _a:
         if OUT.exists():
             OUT.unlink()
