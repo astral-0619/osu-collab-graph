@@ -63,8 +63,9 @@ def extract(html_text):
 def main():
     import sys as _sys
     if "--help" in _sys.argv or "-h" in _sys.argv:
-        print("用法: python3 crawl_collab_lists_v2.py [--fresh] [--shard-i=N --shard-n=M]")
+        print("用法: python3 crawl_collab_lists_v2.py [--fresh] [--bfs] [--shard-i=N --shard-n=M]")
         print("  --fresh      删除断点文件，强制全量重爬（默认增量续爬）")
+        print("  --bfs        扩散模式：爬图里所有未爬节点（外部引用），append 到现有列表")
         print("  --shard-i=N  只爬 todo 中索引 % shard_n == N 的部分（配合 Actions 分片）")
         print("  --shard-n=M  分片总数（默认 1）")
         return
@@ -76,10 +77,9 @@ def main():
         if _x.startswith("--shard-n="): shard_n = int(_x.split("=", 1)[1])
         elif _x == "--shard-n": shard_n = int(_a[_a.index(_x) + 1])
     fresh = "--fresh" in _a
+    bfs = "--bfs" in _a
     if fresh:
         print("--fresh: 强制全量重爬（保留主名单基线）", flush=True)
-    # 爬取对象 = 主名单（collab_lists 出现过的 uid + 种子），不是图全部节点。
-    # 图节点含外部引用（会持续膨胀，全爬有 6h 超时风险且外部引用不影响主名单展示）。
     SEEDS = {18230719, 20865377, 37684093, 35844030, 10681880, 14538142, 2192312, 38737489, 36062235}
     all_uids = set(SEEDS)
     if OUT.exists():
@@ -88,9 +88,13 @@ def main():
                 all_uids.add(json.loads(line)["uid"])
             except Exception:
                 pass
+    graph = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
+    if bfs:
+        # BFS 扩散模式：爬图里所有还没爬过的节点（外部引用），append 到现有列表
+        all_uids = sorted({n["uid"] for n in graph["nodes"]} | SEEDS)
+        print(f"--bfs: 扩散模式，目标 = 图全部 {len(all_uids)} 节点（含外部引用）", flush=True)
     if not all_uids - SEEDS:
         # 首次无基线：退回图节点（种子展开）
-        graph = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
         all_uids = {n["uid"] for n in graph["nodes"]} | SEEDS
     all_uids = sorted(all_uids)
     done = set()
@@ -118,7 +122,7 @@ def main():
         out_file = OUT.with_name(f"collab_lists.shard{shard_i}.jsonl")
     with ThreadPoolExecutor(max_workers=3) as ex:
         futs = {ex.submit(work, u): u for u in todo}
-        with out_file.open("w" if fresh else "a", encoding="utf-8") as f:
+        with out_file.open("a" if bfs else ("w" if fresh else "a"), encoding="utf-8") as f:
             for i, fut in enumerate(as_completed(futs), 1):
                 uid, code, imgs, urls = fut.result()
                 f.write(json.dumps({"uid": uid, "code": code, "imgs": imgs, "urls": urls}, ensure_ascii=False) + "\n")

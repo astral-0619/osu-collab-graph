@@ -3,6 +3,15 @@ name: update-collab-data
 on:
   # 自动更新已按 oines 要求关闭（2026-08-09），只保留手动触发
   workflow_dispatch:
+    inputs:
+      mode:
+        description: '抓取模式: fresh=全量重爬主名单 / bfs=扩散爬外部节点'
+        required: true
+        default: 'fresh'
+        type: choice
+        options:
+          - fresh
+          - bfs
   push:
     branches: [main]
     paths:
@@ -29,7 +38,12 @@ jobs:
         run: pip install requests networkx python-louvain
 
       - name: 全量重爬（实测 Actions 干净 IP ~67 分钟/3732 uid）
-        run: python3 scripts/crawl_collab_lists_v2.py --fresh
+        run: |
+          if [ "${{ github.event.inputs.mode }}" = "bfs" ]; then
+            python3 scripts/crawl_collab_lists_v2.py --bfs
+          else
+            python3 scripts/crawl_collab_lists_v2.py --fresh
+          fi
 
       - name: 提交爬取结果
         run: |
