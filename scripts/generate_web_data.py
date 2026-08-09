@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
-"""社区检测 + 生成前端 graph_data.js（web/ 目录，供 vis-network 页面使用）。"""
+"""社区检测 + 生成前端 graph_data.js（web/ 目录，供 vis-network 页面使用）。
+默认只显示「爬过的对象」（collab_lists.jsonl 里出现过的 uid），外部引用节点过滤；
+--all 保留全量。"""
 import json
+import argparse
 import time
 from collections import Counter, defaultdict
 from pathlib import Path
@@ -14,15 +17,39 @@ PALETTE = ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc948","#b07aa1"
            "#ffbe7d","#8cd17d","#b6992d","#499894","#86bcb6","#e6ab02","#a6761d"]
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--all", action="store_true",
+                    help="不过滤，输出全量图（含外部引用节点）")
+    args = ap.parse_args()
     data = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
+    # 被爬过的对象：collab_lists 里出现过的 uid（含封禁/失败——爬了但列表拿不到也保留）
+    crawled = set()
+    for line in (BASE / "data" / "collab_lists.jsonl").read_text(encoding="utf-8").splitlines():
+        rec = json.loads(line)
+        crawled.add(rec["uid"])
+    SEEDS = {18230719, 20865377, 37684093, 35844030, 10681880, 14538142, 2192312, 38737489, 36062235}
+    crawled |= SEEDS
     G = nx.Graph()
     for n in data["nodes"]:
+        if not args.all and n["uid"] not in crawled:
+            continue
         G.add_node(n["uid"], name=n["name"],
                    total_links=n.get("total_links", 0), mutual_count=n.get("mutual_count", 0))
     for e in data["edges"]:
         u, v = e[0], e[1]
+        if not args.all and (u not in crawled or v not in crawled):
+            continue
         w = e[2] if len(e) > 2 else 1
         G.add_edge(u, v, weight=w)
+    # 爬过但 0 度（空列表且没人引用）的补成孤立节点，保证「爬过的都显示」
+    if not args.all:
+        nm = {}
+        nf = BASE / "data" / "name_map.json"
+        if nf.exists():
+            nm = json.loads(nf.read_text(encoding="utf-8"))
+        for u in crawled - set(G.nodes()):
+            G.add_node(u, name=nm.get(str(u)) or str(u),
+                       total_links=0, mutual_count=0)
     partition = community_louvain.best_partition(G, random_state=42)
     comm_count = len(set(partition.values()))
     comm_color = {c: PALETTE[c % len(PALETTE)] for c in range(comm_count)}
