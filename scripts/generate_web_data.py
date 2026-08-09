@@ -89,8 +89,16 @@ def main():
                   "heat": round(heat.get(uid, 0.0) * 100, 2),
                   "heat_rank": heat_rank.get(uid)}
                  for uid, attr in G.nodes(data=True)]
-    # Top50 榜：先按累计 collab 张数降序，再按 collab 玩家数降序
-    top = sorted(G.nodes(), key=lambda n: (-G.nodes[n].get("total_links", 0), -G.degree(n)))[:100]
+    # 排行榜不受显示过滤影响：从全量图算（先按累计 collab 张数，再按度）
+    G_full = nx.Graph()
+    for n in data["nodes"]:
+        G_full.add_node(n["uid"], name=n["name"],
+                        total_links=n.get("total_links", 0), mutual_count=n.get("mutual_count", 0))
+    for e in data["edges"]:
+        u, v = e[0], e[1]
+        w = e[2] if len(e) > 2 else 1
+        G_full.add_edge(u, v, weight=w)
+    top = sorted(G_full.nodes(), key=lambda n: (-G_full.nodes[n].get("total_links", 0), -G_full.degree(n)))[:100]
     edge_data = []
     weights = []
     for u, v, a in G.edges(data=True):
@@ -103,8 +111,8 @@ def main():
         "stats": {"nodes": len(nodes_out), "edges": len(G.edges()), "communities": comm_count,
                   "maxWeight": max(weights) if weights else 1,
                   "mutualEdges": sum(1 for w in weights if w >= 2)},
-        "topHubs": [{"name": G.nodes[n]["name"] or str(n), "deg": G.degree(n),
-                     "links": G.nodes[n].get("total_links", 0)} for n in top],
+        "topHubs": [{"name": G_full.nodes[n]["name"] or str(n), "deg": G_full.degree(n),
+                     "links": G_full.nodes[n].get("total_links", 0)} for n in top],
         "commColors": {str(c): comm_color[c] for c in range(comm_count)},
         "updatedAt": int(time.time()),
     }
