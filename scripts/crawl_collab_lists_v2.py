@@ -75,14 +75,26 @@ def main():
         elif _x == "--shard-i": shard_i = int(_a[_a.index(_x) + 1])
         if _x.startswith("--shard-n="): shard_n = int(_x.split("=", 1)[1])
         elif _x == "--shard-n": shard_n = int(_a[_a.index(_x) + 1])
-    if "--fresh" in _a:
-        if OUT.exists():
-            OUT.unlink()
-            print("--fresh: 已删除旧断点，强制全量重爬", flush=True)
-    graph = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
-    all_uids = sorted(n["uid"] for n in graph["nodes"])
-    done = set()
+    fresh = "--fresh" in _a
+    if fresh:
+        print("--fresh: 强制全量重爬（保留主名单基线）", flush=True)
+    # 爬取对象 = 主名单（collab_lists 出现过的 uid + 种子），不是图全部节点。
+    # 图节点含外部引用（会持续膨胀，全爬有 6h 超时风险且外部引用不影响主名单展示）。
+    SEEDS = {18230719, 20865377, 37684093, 35844030, 10681880, 14538142, 2192312, 38737489, 36062235}
+    all_uids = set(SEEDS)
     if OUT.exists():
+        for line in OUT.read_text(encoding="utf-8").splitlines():
+            try:
+                all_uids.add(json.loads(line)["uid"])
+            except Exception:
+                pass
+    if not all_uids - SEEDS:
+        # 首次无基线：退回图节点（种子展开）
+        graph = json.loads((BASE / "data" / "collab_graph.json").read_text(encoding="utf-8"))
+        all_uids = {n["uid"] for n in graph["nodes"]} | SEEDS
+    all_uids = sorted(all_uids)
+    done = set()
+    if OUT.exists() and not fresh:
         for line in OUT.read_text(encoding="utf-8").splitlines():
             try:
                 done.add(json.loads(line)["uid"])
@@ -106,7 +118,7 @@ def main():
         out_file = OUT.with_name(f"collab_lists.shard{shard_i}.jsonl")
     with ThreadPoolExecutor(max_workers=3) as ex:
         futs = {ex.submit(work, u): u for u in todo}
-        with out_file.open("a", encoding="utf-8") as f:
+        with out_file.open("w" if fresh else "a", encoding="utf-8") as f:
             for i, fut in enumerate(as_completed(futs), 1):
                 uid, code, imgs, urls = fut.result()
                 f.write(json.dumps({"uid": uid, "code": code, "imgs": imgs, "urls": urls}, ensure_ascii=False) + "\n")
