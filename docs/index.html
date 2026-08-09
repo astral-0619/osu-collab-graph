@@ -41,8 +41,10 @@
 </div>
 <script src="vis-network.min.js"></script>
 <script src="graph_data.js?v=16"></script>
+<script src="profile_data.js?v=17"></script>
 <script>
 const D = window.GRAPH_DATA;
+const PD = window.PROFILE_DATA || {};
 document.getElementById("stat").textContent =
   D.stats.nodes + " 节点 / " + D.stats.edges + " 边（" + D.stats.mutualEdges + " 条双向，最大 ×" + D.stats.maxWeight + "）";
   if (D.updatedAt) {
@@ -163,6 +165,44 @@ function renderPanel(uid) {
   let h = `<div class="btn" style="background:#444" onclick="goBack()">← 返回上一级</div>`;
   h += `<div class="big">${info.name}</div>`;
   h += `<div class="muted">collab 玩家: ${info.nbrs.length}｜累计 ${info.total_links} 张｜双向互链 ${info.mutual_count} 人</div>`;
+  // —— 新维度详情（profiles_raw 全量数据，懒加载文件）——
+  const pf = PD[uid];
+  if (pf) {
+    const parts = [];
+    if (pf.pn && pf.pn.length) parts.push(`曾用名: ${pf.pn.join(" → ")}`);
+    if (pf.t) parts.push(`称号: ${pf.t}`);
+    if (pf.team && pf.team.n) parts.push(`战队: ${pf.team.n}`);
+    if (pf.g && pf.g.length) parts.push(`用户组: ${pf.g.map(g=>g.n).join("/")}`);
+    if (pf.sup) parts.push(`支持者 Lv${pf.sup}`);
+    if (parts.length) h += `<div class="muted" style="color:#8ecae6">${parts.join(" ｜ ")}</div>`;
+    if (pf.rh) h += `<div class="muted" style="color:#8ecae6">历史最高 #${pf.rh}${pf.rhat ? "（" + pf.rhat + "）" : ""}</div>`;
+    const social = [];
+    if (pf.tw) social.push("tw:" + pf.tw);
+    if (pf.w) social.push("w:" + (pf.w.includes("://") ? pf.w : "https://" + pf.w));
+    if (pf.d) social.push("d:" + pf.d);
+    if (pf.loc) social.push(`地区: ${pf.loc}`);
+    if (social.length) {
+      const href = s => s.startsWith("tw:") ? "https://twitter.com/" + s.slice(3)
+                   : s.startsWith("w:") ? s.slice(2)
+                   : s.startsWith("d:") ? "https://discord.gg/" + s.slice(2) : "#";
+      const label = s => s.startsWith("tw:") ? "twitter: " + s.slice(3)
+                   : s.startsWith("w:") ? "网站: " + s.slice(2)
+                   : s.startsWith("d:") ? "discord: " + s.slice(2) : s;
+      h += `<div class="muted" style="font-size:12px">${social.map(s=>`<a href="${href(s)}" target="_blank" style="color:#8ecae6">${label(s)}</a>`).join(" ｜ ")}</div>`;
+    }
+    if (pf.f || pf.mf) h += `<div class="muted" style="font-size:12px">粉丝 ${pf.f||0} ｜ mapping 关注 ${pf.mf||0}${pf.kudosu ? ` ｜ kudosu ${pf.kudosu}` : ""}${pf.ach ? ` ｜ 成就 ${pf.ach}` : ""}</div>`;
+    if (pf.curve && pf.curve.length > 1) {
+      // 极简 rank 曲线（SVG sparkline，近 90 天，数值越小越强）
+      const c = pf.curve, maxR = Math.max(...c.map(x=>x[1]||0)), minR = Math.min(...c.map(x=>x[1]||0));
+      const w = 220, hh = 34, span = Math.max(1, maxR - minR);
+      const pts = c.map((x,i)=>`${(i/(c.length-1)*w).toFixed(0)},${(hh-((x[1]-minR)/span)*(hh-4)-2).toFixed(0)}`).join(" ");
+      h += `<div class="muted" style="font-size:12px">全球排名曲线（近 90 天，当前 #${minR}）<svg width="${w}" height="${hh}" style="display:block;background:#1b1b1b;border-radius:4px"><polyline points="${pts}" fill="none" stroke="#8ecae6" stroke-width="1.5"/></svg></div>`;
+    }
+    if (pf.essay) {
+      const esc = s => s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+      h += `<div class="muted" style="font-size:12px;border-top:1px dashed #333;margin-top:6px;padding-top:4px">主页小作文: ${esc(pf.essay)}${pf.essay.length>=800?"…":""}</div>`;
+    }
+  }
   if (info.stats && info.stats.join_date) {
     h += `<div class="muted">注册于 ${info.stats.join_date.slice(0,10)}</div>`;
   }

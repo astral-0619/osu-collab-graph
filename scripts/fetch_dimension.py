@@ -21,7 +21,7 @@ FIELD_EXTRACT = {
 MODE_KEYS = {"osu": "osu", "taiko": "taiko", "fruits": "fruits", "mania": "mania"}
 
 
-def fetch_stats():
+def fetch_stats(skip_b=False):
     """全 4 模式成绩维度：pp / 游戏时间 / 游戏次数 / 全球排名 / 地区排名 + 注册时间。
     批量接口给 statistics_rulesets（4 模式核心字段），单用户接口补 join_date + country_rank。"""
     cid, sec = load_creds()
@@ -93,6 +93,12 @@ def fetch_stats():
     need = [u for u in uids
             if "join_date" not in real.get(str(u), {})
             or not has_all_ranks(real.get(str(u), {}))]
+    if skip_b:
+        # 只做批量阶段（省 4 模式单用户请求），country_rank 缺口留待下轮爬主页自然补
+        print(f"阶段 B 跳过（--skip-b），剩余 {len(need)} 人待补 country_rank", flush=True)
+        json.dump(real, out_file.open("w", encoding="utf-8"), ensure_ascii=False)
+        print(f"stats 完成(批量): {len(real)} 用户", flush=True)
+        return
     print(f"阶段 B: 需补 join_date/country_rank {len(need)} 人 × 4 模式", flush=True)
     import concurrent.futures as cf
 
@@ -139,10 +145,12 @@ def main():
     ap.add_argument("--web-fallback", action="store_true", help="API 拿不到的用网页回退")
     ap.add_argument("--refresh", action="store_true",
                     help="忽略已有缓存强制全量重拉（默认增量：只拉新增/缺失）")
+    ap.add_argument("--skip-b", action="store_true",
+                    help="stats 跳过阶段 B（单用户 4 模式 country_rank），只跑批量")
     args = ap.parse_args()
     field = args.field
     if field == "stats":
-        fetch_stats()
+        fetch_stats(skip_b=args.skip_b)
         return
     if field not in FIELD_EXTRACT:
         sys.exit(f"未知维度 {field}，可用: {list(FIELD_EXTRACT) + ['stats']}")
