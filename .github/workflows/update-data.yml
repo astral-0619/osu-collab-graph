@@ -1,9 +1,7 @@
 name: update-collab-data
 
 on:
-  schedule:
-    # UTC 周五 16:00 = 北京时间周六 00:00，每周全量刷新
-    - cron: '0 16 * * 5'
+  # 自动更新已按 oines 要求关闭（2026-08-09），只保留手动触发
   workflow_dispatch:
   push:
     branches: [main]
