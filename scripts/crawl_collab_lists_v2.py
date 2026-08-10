@@ -13,32 +13,95 @@ OUT = BASE / "data" / "collab_lists.jsonl"
 RAW_DIR = BASE / "data" / "profiles_raw"
 MAX_ATTEMPTS = 6
 
+# 全局 429 熔断：连续 429/403 达到阈值即全体冷却，避免在 CF 惩罚窗口里反复打
+_circuit = {"consecutive_429": 0}
+_CIRCUIT_BREAK_AT = 6          # 连续 6 次 429/403 触发熔断
+_CIRCUIT_COOL_DOWN = 300       # 熔断冷却 5 分钟
+_circuit_lock = __import__("threading").Lock()
+
+def _circuit_wait_until_clear():
+    """熔断检查：触发则打印并全体 sleep 冷却，随后清零计数。"""
+    while True:
+        with _circuit_lock:
+            if _circuit["consecutive_429"] < _CIRCUIT_BREAK_AT:
+                return
+        print(f"  !!! 连续 {_CIRCUIT_BREAK_AT}+ 次 429/403，触发全局熔断，冷却 {_CIRCUIT_COOL_DOWN}s", flush=True)
+        time.sleep(_CIRCUIT_COOL_DOWN)
+        with _circuit_lock:
+            _circuit["consecutive_429"] = 0
+        print("  --- 熔断结束，恢复爬取", flush=True)
+
+def _mark_http(code):
+    with _circuit_lock:
+        if code in ("429", "403"):
+            _circuit["consecutive_429"] += 1
+        else:
+            _circuit["consecutive_429"] = 0
+
 def fetch(uid):
     for attempt in range(1, MAX_ATTEMPTS + 1):
+        _circuit_wait_until_clear()
         try:
+            hdr_tmp = f"/tmp/crawl_hdr_{os.getpid()}.txt"
+            body_tmp = f"/tmp/crawl_body_{os.getpid()}.html"
             r = subprocess.run(
-                ["curl", "-s", "-A", UA, "-m", "30", "-w", "\n%{http_code}",
+                ["curl", "-s", "-A", UA, "-m", "30",
+                 "-D", hdr_tmp, "-o", body_tmp,
+                 "-w", "%{http_code}",
                  f"https://osu.ppy.sh/users/{uid}"],
                 capture_output=True, text=True, timeout=40)
-            out = r.stdout
-            code = out.rsplit("\n", 1)[-1].strip() if out else "000"
-            body = out.rsplit("\n", 1)[0] if out else ""
+            meta = (r.stdout or "").strip()
+            try:
+                body = open(body_tmp, errors="ignore").read()
+            except Exception:
+                body = ""
+            finally:
+                try:
+                    os.remove(body_tmp)
+                except Exception:
+                    pass
+            code = meta if meta else "000"
+            retry_after = None
+            try:
+                for line in open(hdr_tmp, errors="ignore"):
+                    if line.lower().startswith("retry-after:"):
+                        retry_after = min(60, float(line.split(":", 1)[1].strip()))
+                        break
+            except Exception:
+                pass
+            finally:
+                try:
+                    os.remove(hdr_tmp)
+                except Exception:
+                    pass
             if code == "200" and 'data-initial-data="' in body:
+                _mark_http(code)
                 return body, code
-            if code in ("429", "403", "000"):
-                wait = min(60, 10 * (2 ** (attempt - 1))) + random.uniform(0, 3)
+            if code in ("429", "403", "502", "503", "000"):
+                _mark_http(code)
+                if retry_after:
+                    wait = min(120, retry_after)
+                elif code == "000":
+                    wait = 3 + attempt * 2  # curl 层断连，重试快
+                elif code in ("502", "503"):
+                    wait = 5 + attempt * 3  # 服务器过载，中速重试
+                else:
+                    wait = min(120, 10 * (2 ** (attempt - 1))) + random.uniform(0, 2)
                 print(f"    uid {uid} attempt {attempt} HTTP {code} 退避 {wait:.0f}s", flush=True)
                 time.sleep(wait)
                 continue
             # 200 但无 data-initial-data（限流/异常页）
             if code == "200" and len(body) < 20000:
-                wait = min(60, 8 * (2 ** (attempt - 1))) + random.uniform(0, 3)
+                _mark_http("429")
+                wait = (retry_after if retry_after else min(120, 10 * (2 ** (attempt - 1)))) + random.uniform(0, 2)
                 print(f"    uid {uid} attempt {attempt} 空页退避 {wait:.0f}s", flush=True)
                 time.sleep(wait)
                 continue
+            _mark_http(code)
             return body, code
         except Exception:
             time.sleep(5 + attempt * 3)
+    _mark_http("000")
     return None, "fail"
 
 def extract(html_text):
@@ -92,9 +155,16 @@ def extract_profile_from_user(u):
                 "id": team.get("id"), "flag": team.get("flag_url")}
     rh = u.get("rank_history") or u.get("rankHistory")
     if isinstance(rh, dict):
-        # data: [{date, rank, pp}...] 90 点，降采样保留全部但压短（日期+pp+rank 三列）
-        rh = {"mode": rh.get("mode"),
-              "data": [[d.get("date"), d.get("pp"), d.get("rank")] for d in (rh.get("data") or [])]}
+        d = rh.get("data") or []
+        if d and isinstance(d[0], dict):
+            # data: [{date, rank, pp}...] 对象数组
+            rh = {"mode": rh.get("mode"),
+                  "data": [[x.get("date"), x.get("pp"), x.get("rank")] for x in d]}
+        else:
+            # data: 90 个纯 rank 数字（主页 data-initial-data 的扁平结构）
+            rh = {"mode": rh.get("mode"), "data": d}
+    elif isinstance(rh, list):
+        rh = {"mode": None, "data": rh}
     highest = u.get("rank_highest")
     if isinstance(highest, dict):
         highest = {"rank": highest.get("rank"), "at": highest.get("updated_at")}
@@ -211,10 +281,17 @@ def main():
     all_uids = sorted(all_uids)
     done_collab = set()
     done_raw = set()
+    skip404 = set()      # 已确认 404 的幽灵 uid：raw 永远缺，不再重爬
+    fail_count = {}
     if OUT.exists() and not fresh:
         for line in OUT.read_text(encoding="utf-8").splitlines():
             try:
-                done_collab.add(json.loads(line)["uid"])
+                rec = json.loads(line)
+                done_collab.add(rec["uid"])
+                if rec.get("code") == "404":
+                    skip404.add(rec["uid"])
+                elif rec.get("code") == "fail":
+                    fail_count[rec["uid"]] = fail_count.get(rec["uid"], 0) + 1
             except Exception:
                 pass
     if RAW_DIR.exists():
@@ -222,7 +299,9 @@ def main():
             done_raw.add(int(p.stem.split(".")[0]))
     if bfs:
         # 全量模式：collab 或 raw 任一缺失就爬
-        todo = [u for u in all_uids if u not in done_collab or u not in done_raw]
+        todo = [u for u in all_uids
+                if (u not in done_collab or u not in done_raw)
+                and u not in skip404]
     else:
         todo = [u for u in all_uids if u not in done_collab]
     if shard_n > 1:
@@ -249,17 +328,25 @@ def main():
     out_file = OUT
     if shard_n > 1:
         out_file = OUT.with_name(f"collab_lists.shard{shard_i}.jsonl")
-    with ThreadPoolExecutor(max_workers=3) as ex:
+    with ThreadPoolExecutor(max_workers=2) as ex:
         futs = {ex.submit(work, u): u for u in todo}
         with out_file.open("a" if bfs else ("w" if fresh else "a"), encoding="utf-8") as f:
+            this_run_fail = []
             for i, fut in enumerate(as_completed(futs), 1):
                 uid, code, imgs, urls, raw_ok = fut.result()
+                if code == "fail":
+                    this_run_fail.append(uid)
                 f.write(json.dumps({"uid": uid, "code": code, "imgs": imgs, "urls": urls}, ensure_ascii=False) + "\n")
                 f.flush()
                 if i % 25 == 0 or i == len(todo):
                     print(f"  {i}/{len(todo)}", flush=True)
-                time.sleep(0.5)
-    print("done", flush=True)
+                time.sleep(1.2)
+    # 收敛判定：本轮 fail 全部是历史老 fail（运行开始前已有 fail 记录）→ 尽力而为完成
+    new_fail = [u for u in this_run_fail if fail_count.get(u, 0) == 0]
+    if this_run_fail and not new_fail:
+        print(f"all crawled (fail 收敛: {len(this_run_fail)} 个反复失败已尽力, 404 跳过 {len(skip404)})", flush=True)
+    else:
+        print("done", flush=True)
 
 if __name__ == "__main__":
     main()

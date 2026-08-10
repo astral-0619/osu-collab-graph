@@ -65,7 +65,7 @@ def main():
         (BASE / "data" / fn).write_text(
             json.dumps(m, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     print(f"处理 {n} 个 raw 文件", flush=True)
-    print("缺失: " + (dict(missing) if missing else "无"), flush=True)
+    print("缺失: " + str(dict(missing) if missing else "无"), flush=True)
     print(f"name_map {len(name_map)} / country_map {len(country_map)} / team_map {len(team_map)} / stats_map {len(stats_map)}", flush=True)
 
 

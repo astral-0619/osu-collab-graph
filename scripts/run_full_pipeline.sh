@@ -12,7 +12,7 @@ python3 scripts/fetch_dimension.py --field=country
 echo "== 4/9 team 兜底"
 python3 scripts/fetch_dimension.py --field=team
 echo "== 5/9 stats 兜底（仅批量阶段）"
-python3 scripts/fetch_dimension.py --field=stats --skip-b
+echo "（跳过：批量接口限流，stats 主数据来自 profiles_raw）"
 echo "== 6/9 profile_map 精选分析层"
 python3 scripts/build_profile_map.py
 echo "== 7/9 重建图（外部节点入图）"

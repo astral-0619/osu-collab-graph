@@ -34,12 +34,17 @@ def main():
     url_only = defaultdict(Counter)   # [url] 文本链接
     names_seen = {}
     codes = Counter()
+    recs200 = {}
     for line in (BASE / "data" / "collab_lists.jsonl").read_text(encoding="utf-8").splitlines():
-        rec = json.loads(line)
-        codes[rec.get("code")] += 1
-        if rec.get("code") != "200":
+        try:
+            rec = json.loads(line)
+        except Exception:
             continue
-        u = rec["uid"]
+        codes[rec.get("code")] += 1
+        if rec.get("code") == "200":
+            # 同一 uid 多次爬取：保留最新一条（页面内容可能更新），避免边权重翻倍
+            recs200[rec["uid"]] = rec
+    for u, rec in recs200.items():
         for c_uid, c_name in rec["imgs"]:
             if c_uid != u:
                 outbound[u][c_uid] += 1

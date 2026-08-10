@@ -61,6 +61,7 @@ def fetch_batch(uids):
 
 def main():
     force = "--force" in sys.argv
+    skip_api = "--skip-api" in sys.argv
     merged = load_profiles()
     if OUT.exists() and not force:
         old = json.loads(OUT.read_text(encoding="utf-8"))
@@ -71,8 +72,10 @@ def main():
     need = [str(n["uid"]) for n in graph["nodes"] if str(n["uid"]) not in merged]
     print(f"raw/旧 map 已有 {len(merged)}，图节点 {len(graph['nodes'])}，需 API 补 {len(need)}",
           flush=True)
-    if need:
+    if need and not skip_api:
         merged.update(fetch_batch(need))
+    elif need:
+        print(f"跳过 API 兜底（--skip-api），{len(need)} 个节点无 profile", flush=True)
 
     OUT.write_text(json.dumps(merged, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     have_keys = {k for v in merged.values() for k in v if v.get(k) is not None}
