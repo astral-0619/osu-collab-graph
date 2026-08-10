@@ -47,6 +47,9 @@ def fetch_batch(uids):
                              "User-Agent": "osu-collab-graph/1.0"})
                 with urllib.request.urlopen(req, timeout=30) as r:
                     users = json.load(r)
+                if isinstance(users, dict):
+                    # 限流/异常时接口可能返回 {"error": ...} 或 {"users": [...]}
+                    users = users.get("users") or []
                 for u in users:
                     p = extract_profile_from_user(u)
                     if p:

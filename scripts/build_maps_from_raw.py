@@ -41,7 +41,9 @@ def main():
         if isinstance(t, dict):
             team_map[uid] = t.get("name") or t.get("short_name")
         elif t is None:
-            team_map.pop(uid, None)
+            # 保留 null 标记：确认无战队的号也算「已缓存」，否则 fetch_dimension
+            # 会把所有无战队号当缺口逐个重拉（12463 个请求的假缺口）
+            team_map[uid] = None
         s = u.get("statistics") or {}
         rs = u.get("statistics_rulesets") or {}
         modes = {}
